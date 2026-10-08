@@ -85,7 +85,9 @@ const aiDefaults = {
     geminiApiKey: '',
     geminiModel: 'gemini-flash-latest',
     deepseekApiKey: '',
-    deepseekModel: 'deepseek-chat'
+    deepseekModel: 'deepseek-chat',
+    groqApiKey: '',
+    groqModel: 'llama-3.3-70b-versatile'
 };
 
 // Each provider keeps its own key and model, stored as <provider>ApiKey and <provider>Model.
@@ -119,6 +121,21 @@ const providers = {
                 throw new Error(body.error?.message ?? `HTTP ${response.status}`);
             }
             return (body.data ?? []).map(model => model.id);
+        }
+    },
+    groq: {
+        name: 'Groq',
+        fallbackModels: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+        async listModels(apiKey) {
+            const response = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            const body = await response.json();
+            if (!response.ok) {
+                throw new Error(body.error?.message ?? `HTTP ${response.status}`);
+            }
+            // Groq also lists speech and moderation models, which can't answer a question
+            return (body.data ?? []).map(model => model.id).filter(id => !/whisper|tts|guard/i.test(id)).sort();
         }
     }
 };

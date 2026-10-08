@@ -11,6 +11,9 @@ document.addEventListener('kahoot-shortcuts-press', (event) => {
         return;
     }
 
+    // tells kahoot.js that the handler was found and called
+    event.preventDefault();
+
     // Kahoot's handler only accepts events flagged as coming from the user
     onClick({
         type: 'click',

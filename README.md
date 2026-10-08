@@ -31,8 +31,8 @@ Alternatively, if the extension is in your toolbar, you can change your shortcut
 Once finished updating the shortcuts, hit save, and the new shortcuts will instantly be used.
 
 ## Auto response answer with AI
-For educational purposes, the extension can answer single-choice questions on its own using a Gemini or DeepSeek model.
+For educational purposes, the extension can answer single-choice questions on its own using a Gemini, DeepSeek or Groq model.
 
-In the options, tick "Auto response answer with AI", choose a provider, paste its API key (from [Google AI Studio](https://aistudio.google.com/apikey) or the [DeepSeek platform](https://platform.deepseek.com/api_keys)) and pick a model. Each key is stored in the browser's local extension storage and is only sent to its own provider's API.
+In the options, tick "Auto response answer with AI", choose a provider, paste its API key (from [Google AI Studio](https://aistudio.google.com/apikey), the [DeepSeek platform](https://platform.deepseek.com/api_keys) or the [Groq console](https://console.groq.com/keys)) and pick a model. Each key is stored in the browser's local extension storage and is only sent to its own provider's API.
 
 The host must show questions and answers on the players' devices. If they are not displayed, or if the question is multi-select, the extension shows a notice and leaves the answer to you.

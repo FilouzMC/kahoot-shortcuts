@@ -4,7 +4,8 @@
 // (chrome.* is used rather than browser.*, it exists in both and the polyfill isn't loaded here)
 const allowedOrigins = [
     'https://generativelanguage.googleapis.com',
-    'https://api.deepseek.com'
+    'https://api.deepseek.com',
+    'https://api.groq.com'
 ];
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

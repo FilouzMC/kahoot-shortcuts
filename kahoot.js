@@ -11,14 +11,16 @@ const aiDefaults = {
     geminiApiKey: '',
     geminiModel: 'gemini-flash-latest',
     deepseekApiKey: '',
-    deepseekModel: 'deepseek-chat'
+    deepseekModel: 'deepseek-chat',
+    groqApiKey: '',
+    groqModel: 'llama-3.3-70b-versatile'
 };
 
 // Kahoot answers now have classes like answer-0, or answer-1
 // So I order them, and use index in array to identify
 const shapes = ['triangle', 'diamond', 'circle', 'square'];
 
-// True or false questions don't follow that order (answer-0 is the diamond),
+// True or false questions don't follow that order (answer-0 is the diamond, answer-1 the triangle),
 // so the shape is read from the start of the icon's svg path when possible
 const iconPaths = {
     triangle: 'M27,24.5',
@@ -35,11 +37,17 @@ const colors = {
     square: 'green'
 };
 
+function isTrueOrFalse() {
+    return document.querySelector('[data-functional-selector="question-type-heading-trueOrFalseTitle"]') !== null;
+}
+
 function readAnswers() {
+    const trueOrFalse = isTrueOrFalse();
     return [...document.querySelectorAll('button[data-functional-selector^="answer-"]')].map(button => {
         const index = Number(button.dataset.functionalSelector.slice('answer-'.length));
         const icon = button.querySelector('svg path')?.getAttribute('d') ?? '';
-        const shape = shapes.find(candidate => icon.startsWith(iconPaths[candidate])) ?? shapes[index];
+        // if the icon isn't recognized, fall back on the order Kahoot uses for this type of question
+        const shape = shapes.find(candidate => icon.startsWith(iconPaths[candidate])) ?? shapes[trueOrFalse ? (index + 1) % 2 : index];
         return { button, index, shape, color: colors[shape], text: selectorText(`question-choice-text-${index}`, button) };
     });
 }
@@ -48,12 +56,30 @@ function readAnswers() {
 // so kahoot-main.js, which runs in the page's own world, is asked to call the button's handler
 function pressAnswer(answer) {
     console.log('[Kahoot AI]', `pressing answer-${answer.index} (${answer.color})`);
-    answer.button.dispatchEvent(new CustomEvent('kahoot-shortcuts-press', { bubbles: true }));
+    // kahoot-main.js cancels the event once it has called the handler, so dispatchEvent returns false
+    let handled = !answer.button.dispatchEvent(new CustomEvent('kahoot-shortcuts-press', { bubbles: true, cancelable: true }));
+
+    // Firefox only: if kahoot-main.js didn't answer, the page's objects can be reached from here
+    if (!handled && answer.button.wrappedJSObject !== undefined) {
+        console.log('[Kahoot AI]', 'kahoot-main.js did not handle the press, calling the handler through wrappedJSObject');
+        const pageButton = answer.button.wrappedJSObject;
+        const propsKey = Object.keys(pageButton).find(key => key.startsWith('__reactProps$'));
+        if (propsKey !== undefined && typeof pageButton[propsKey].onClick === 'function') {
+            // cloneInto is a Firefox global, it hands the fake event over to the page
+            pageButton[propsKey].onClick(cloneInto({ type: 'click', isTrusted: true }, window));
+            handled = true;
+        }
+    }
+
+    if (!handled) {
+        console.error('[Kahoot AI]', 'the click handler of the answer could not be called');
+        return;
+    }
 
     setTimeout(() => {
         const accepted = !answer.button.isConnected || answer.button.disabled;
-        console.log('[Kahoot AI]', accepted ? 'answer accepted' : 'answer still on screen, the press was not accepted');
-    }, 300);
+        console.log('[Kahoot AI]', accepted ? 'answer accepted' : 'handler called, but the answer is still on screen after 1 s');
+    }, 1000);
 }
 
 // When the extension is reloaded, the copy of this script left in an already open page loses access
@@ -123,6 +149,7 @@ function readQuestion() {
         number: selectorText('question-index-counter'),
         title: selectorText('block-title'),
         multiSelect: document.querySelector('[data-functional-selector="multi-select-submit-button"]') !== null,
+        trueOrFalse: isTrueOrFalse(),
         answers: answers.map(answer => ({ color: answer.color, text: answer.text }))
     };
 }
@@ -176,7 +203,7 @@ async function apiPost(url, headers, body) {
     return reply.body;
 }
 
-// Both return the raw text of the model's reply
+// The ask functions return the raw text of the model's reply
 async function askGemini(prompt, available, apiKey, model) {
     const body = await apiPost(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -193,9 +220,10 @@ async function askGemini(prompt, available, apiKey, model) {
     return (body?.candidates?.[0]?.content?.parts ?? []).map(part => part.text ?? '').join('');
 }
 
-async function askDeepSeek(prompt, available, apiKey, model) {
+// DeepSeek and Groq share the same (OpenAI) API format, only the url differs
+async function askChatCompletions(url, prompt, apiKey, model) {
     const body = await apiPost(
-        'https://api.deepseek.com/chat/completions',
+        url,
         { 'Authorization': `Bearer ${apiKey}` },
         {
             model,
@@ -209,15 +237,32 @@ async function askDeepSeek(prompt, available, apiKey, model) {
 
 const providers = {
     gemini: { name: 'Gemini', ask: askGemini },
-    deepseek: { name: 'DeepSeek', ask: askDeepSeek }
+    deepseek: {
+        name: 'DeepSeek',
+        ask: (prompt, available, apiKey, model) => askChatCompletions('https://api.deepseek.com/chat/completions', prompt, apiKey, model)
+    },
+    groq: {
+        name: 'Groq',
+        ask: (prompt, available, apiKey, model) => askChatCompletions('https://api.groq.com/openai/v1/chat/completions', prompt, apiKey, model)
+    }
 };
 
 async function askAI(question, provider, apiKey, model) {
     const available = question.answers.map(answer => answer.color);
-    const prompt = 'You are answering a multiple-choice quiz question. ' +
-        'Reply with the color of the correct answer and nothing else.\n\n' +
-        `Question: ${question.title}\n` +
-        question.answers.map(answer => `${answer.color}: ${answer.text}`).join('\n');
+    let prompt;
+    if (question.trueOrFalse) {
+        // Kahoot translates the two answers into the player's language, answer-0 is always "true",
+        // so they are sent in English whatever the language is
+        prompt = 'You are answering a true or false quiz question. Decide whether the statement is true or false, ' +
+            'and reply with the color of the correct answer and nothing else.\n\n' +
+            `Statement: ${question.title}\n` +
+            question.answers.map((answer, index) => `${answer.color}: ${index === 0 ? 'true' : 'false'}`).join('\n');
+    } else {
+        prompt = 'You are answering a multiple-choice quiz question. ' +
+            'Reply with the color of the correct answer and nothing else.\n\n' +
+            `Question: ${question.title}\n` +
+            question.answers.map(answer => `${answer.color}: ${answer.text}`).join('\n');
+    }
 
     log(`asking ${providers[provider].name} ${model}\n${prompt}`);
     const start = performance.now();
