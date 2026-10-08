@@ -12,8 +12,23 @@
                 "browser-polyfill.js",
                 "kahoot.js"
             ]
+        },
+        {
+            "matches": [
+                "*://kahoot.it/*"
+            ],
+            "js": [
+                "kahoot-main.js"
+            ],
+            "world": "MAIN"
         }
     ],
+    "background": {
+        "service_worker": "background.js",
+        "scripts": [
+            "background.js"
+        ]
+    },
     "icons": {
         "48": "icon.png",
         "96": "icon@2x.png"
@@ -24,6 +39,10 @@
     "permissions": [
         "storage"
     ],
+    "host_permissions": [
+        "https://generativelanguage.googleapis.com/*",
+        "https://api.deepseek.com/*"
+    ],
     "action": {
         "default_icon": {
             "48": "icon.png",
@@ -31,5 +50,11 @@
         },
         "default_title": "Keyboard Shortcuts for Kahoot",
         "default_popup": "options/options.html"
+    },
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "kahoot-shortcuts@filouz",
+            "strict_min_version": "128.0"
+        }
     }
 }

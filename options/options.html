@@ -104,6 +104,18 @@
       </div>
 
       <p id="unique" hidden>Shortcuts must be unique!</p>
+
+      <div id="ai">
+        <label><input type="checkbox" id="aiEnabled" /> Auto response answer with AI</label>
+        <label for="aiProvider">AI provider</label>
+        <select id="aiProvider"></select>
+        <label for="aiApiKey">API key</label>
+        <input type="password" id="aiApiKey" autocomplete="off" />
+        <label for="aiModel">Model</label>
+        <select id="aiModel"></select>
+        <button id="aiForce">Answer current question now</button>
+        <p id="aiStatus"></p>
+      </div>
     </main>
 
     <div id="overlay"></div>

@@ -74,6 +74,21 @@ main {
     z-index: 99999;
 }
 
+#ai {
+    position: relative;
+    z-index: 99999;
+    margin-top: 1.5em;
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 0.4em;
+    max-width: 20em;
+}
+
+#aiStatus {
+    margin: 0;
+    font-size: small;
+}
+
 
 #overlay {
     position: fixed;
